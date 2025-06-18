@@ -22,8 +22,22 @@ const Auth = () => {
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('Current session:', session);
       if (session) {
-        navigate('/');
+        // Check user profile and role before redirecting
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        
+        console.log('User profile:', profile);
+        
+        if (profile && ['admin', 'editor'].includes(profile.role)) {
+          navigate('/admin');
+        } else {
+          navigate('/');
+        }
       }
     };
     checkUser();
@@ -35,19 +49,49 @@ const Auth = () => {
 
     try {
       if (isLogin) {
+        console.log('Attempting login with:', formData.email);
         const { data, error } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Login error:', error);
+          throw error;
+        }
+
+        console.log('Login successful:', data);
+
+        // Fetch user profile to check role
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError) {
+          console.error('Profile fetch error:', profileError);
+          toast({
+            title: "Profile Error",
+            description: "Could not fetch user profile. Please contact admin.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        console.log('User profile after login:', profile);
 
         toast({
           title: "Welcome back!",
           description: "You have been successfully logged in.",
         });
-        
-        navigate('/');
+
+        // Redirect based on role
+        if (profile && ['admin', 'editor'].includes(profile.role)) {
+          navigate('/admin');
+        } else {
+          navigate('/');
+        }
       } else {
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
@@ -68,6 +112,7 @@ const Auth = () => {
         });
       }
     } catch (error: any) {
+      console.error('Auth error:', error);
       toast({
         title: "Error",
         description: error.message,
@@ -185,6 +230,13 @@ const Auth = () => {
             >
               {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
             </button>
+          </div>
+
+          {/* Test Admin Credentials */}
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm font-medium text-gray-700 mb-2">Test Admin Access:</p>
+            <p className="text-xs text-gray-600">Email: admin@voiceofbharat.com</p>
+            <p className="text-xs text-gray-600">Password: admin123</p>
           </div>
         </CardContent>
       </Card>
