@@ -9,6 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2, Eye } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import type { Database } from '@/integrations/supabase/types';
+
+type ArticleStatus = Database['public']['Enums']['article_status'];
 
 export const ArticleManager = () => {
   const [articles, setArticles] = useState<any[]>([]);
@@ -23,7 +26,7 @@ export const ArticleManager = () => {
     summary: '',
     content: '',
     featured_image_url: '',
-    status: 'draft',
+    status: 'draft' as ArticleStatus,
     is_breaking: false,
     is_featured: false,
     category_id: '',
@@ -90,7 +93,9 @@ export const ArticleManager = () => {
         ...formData,
         slug: formData.slug || generateSlug(formData.title),
         author_id: user.id,
-        published_at: formData.status === 'published' ? new Date().toISOString() : null
+        published_at: formData.status === 'published' ? new Date().toISOString() : null,
+        category_id: formData.category_id || null,
+        state_id: formData.state_id || null
       };
 
       if (editingArticle) {
@@ -306,7 +311,7 @@ export const ArticleManager = () => {
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Status</label>
-                  <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+                  <Select value={formData.status} onValueChange={(value: ArticleStatus) => setFormData({ ...formData, status: value })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>

@@ -69,6 +69,10 @@ const Admin = () => {
     navigate('/');
   };
 
+  const handleSectionChange = (section: AdminSection) => {
+    setActiveSection(section);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -104,7 +108,7 @@ const Admin = () => {
       user={user}
       userProfile={userProfile}
       activeSection={activeSection}
-      onSectionChange={setActiveSection}
+      onSectionChange={handleSectionChange}
       onSignOut={handleSignOut}
     >
       {renderContent()}

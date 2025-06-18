@@ -14,12 +14,14 @@ import {
   User as UserIcon
 } from 'lucide-react';
 
+type AdminSection = 'dashboard' | 'articles' | 'categories' | 'videos' | 'live' | 'analytics';
+
 interface AdminLayoutProps {
   children: ReactNode;
   user: User | null;
   userProfile: any;
-  activeSection: string;
-  onSectionChange: (section: string) => void;
+  activeSection: AdminSection;
+  onSectionChange: (section: AdminSection) => void;
   onSignOut: () => void;
 }
 
@@ -32,12 +34,12 @@ export const AdminLayout = ({
   onSignOut
 }: AdminLayoutProps) => {
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'articles', label: 'Articles', icon: FileText },
-    { id: 'categories', label: 'Categories', icon: Tags },
-    { id: 'videos', label: 'Videos', icon: Video },
-    { id: 'live', label: 'Live Streams', icon: Radio },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'dashboard' as AdminSection, label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'articles' as AdminSection, label: 'Articles', icon: FileText },
+    { id: 'categories' as AdminSection, label: 'Categories', icon: Tags },
+    { id: 'videos' as AdminSection, label: 'Videos', icon: Video },
+    { id: 'live' as AdminSection, label: 'Live Streams', icon: Radio },
+    { id: 'analytics' as AdminSection, label: 'Analytics', icon: BarChart3 },
   ];
 
   return (
