@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Play } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Edit, Trash2, ExternalLink } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 export const VideoManager = () => {
@@ -62,14 +63,37 @@ export const VideoManager = () => {
     setStates(data || []);
   };
 
+  const extractVideoId = (url: string, type: string) => {
+    if (type === 'youtube') {
+      const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
+      return match ? match[1] : null;
+    }
+    return null;
+  };
+
+  const generateThumbnail = (url: string, type: string) => {
+    if (type === 'youtube') {
+      const videoId = extractVideoId(url, type);
+      return videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : '';
+    }
+    return '';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
+      const videoData = {
+        ...formData,
+        thumbnail_url: formData.thumbnail_url || generateThumbnail(formData.video_url, formData.video_type),
+        category_id: formData.category_id || null,
+        state_id: formData.state_id || null
+      };
+
       if (editingVideo) {
         const { error } = await supabase
           .from('videos')
-          .update(formData)
+          .update(videoData)
           .eq('id', editingVideo.id);
         
         if (error) throw error;
@@ -81,13 +105,13 @@ export const VideoManager = () => {
       } else {
         const { error } = await supabase
           .from('videos')
-          .insert([formData]);
+          .insert([videoData]);
         
         if (error) throw error;
         
         toast({
           title: "Success",
-          description: "Video created successfully.",
+          description: "Video added successfully.",
         });
       }
 
@@ -177,7 +201,7 @@ export const VideoManager = () => {
           className="bg-red-600 hover:bg-red-700"
         >
           <Plus className="h-4 w-4 mr-2" />
-          New Video
+          Add Video
         </Button>
       </div>
 
@@ -188,31 +212,12 @@ export const VideoManager = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Title</label>
-                <Input
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Description</label>
-                <Textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                />
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Video URL</label>
+                  <label className="block text-sm font-medium mb-2">Title</label>
                   <Input
-                    value={formData.video_url}
-                    onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
-                    placeholder="https://youtube.com/watch?v=..."
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     required
                   />
                 </div>
@@ -228,6 +233,25 @@ export const VideoManager = () => {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Video URL</label>
+                <Input
+                  value={formData.video_url}
+                  onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Description</label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -265,11 +289,11 @@ export const VideoManager = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Thumbnail URL</label>
+                <label className="block text-sm font-medium mb-2">Custom Thumbnail URL (optional)</label>
                 <Input
                   value={formData.thumbnail_url}
                   onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
-                  placeholder="https://example.com/thumbnail.jpg"
+                  placeholder="Auto-generated for YouTube videos"
                 />
               </div>
 
@@ -293,28 +317,38 @@ export const VideoManager = () => {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {videos.map((video) => (
           <Card key={video.id}>
             <CardContent className="p-4">
-              <div className="aspect-video bg-gray-200 rounded-lg flex items-center justify-center mb-4">
-                {video.thumbnail_url ? (
-                  <img src={video.thumbnail_url} alt={video.title} className="w-full h-full object-cover rounded-lg" />
-                ) : (
-                  <Play className="h-12 w-12 text-gray-400" />
-                )}
-              </div>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="font-semibold mb-1">{video.title}</h3>
-                  <p className="text-sm text-gray-600 mb-2">{video.description}</p>
-                  <div className="flex items-center space-x-2 text-xs text-gray-500">
-                    <span>{video.video_type}</span>
-                    <span>•</span>
-                    <span>{video.categories?.name || 'No category'}</span>
-                  </div>
+              {video.thumbnail_url && (
+                <img
+                  src={video.thumbnail_url}
+                  alt={video.title}
+                  className="w-full h-48 object-cover rounded-lg mb-4"
+                />
+              )}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Badge variant="outline">{video.video_type}</Badge>
+                  <a
+                    href={video.video_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
                 </div>
-                <div className="flex space-x-1">
+                <h3 className="font-semibold text-lg">{video.title}</h3>
+                {video.description && (
+                  <p className="text-gray-600 text-sm line-clamp-2">{video.description}</p>
+                )}
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <span>{video.categories?.name || 'No category'}</span>
+                  <span>{video.states?.name || 'All India'}</span>
+                </div>
+                <div className="flex space-x-2 pt-2">
                   <Button variant="outline" size="sm" onClick={() => handleEdit(video)}>
                     <Edit className="h-4 w-4" />
                   </Button>

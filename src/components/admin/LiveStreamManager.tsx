@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, Trash2, Radio } from 'lucide-react';
+import { Plus, Edit, Trash2, Radio, RadioIcon } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 export const LiveStreamManager = () => {
@@ -18,8 +18,8 @@ export const LiveStreamManager = () => {
     title: '',
     description: '',
     stream_url: '',
-    is_active: false,
-    thumbnail_url: ''
+    thumbnail_url: '',
+    is_active: false
   });
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export const LiveStreamManager = () => {
       if (error) throw error;
       setStreams(data || []);
     } catch (error) {
-      console.error('Error fetching live streams:', error);
+      console.error('Error fetching streams:', error);
     } finally {
       setIsLoading(false);
     }
@@ -77,8 +77,8 @@ export const LiveStreamManager = () => {
         title: '',
         description: '',
         stream_url: '',
-        is_active: false,
-        thumbnail_url: ''
+        thumbnail_url: '',
+        is_active: false
       });
       fetchStreams();
     } catch (error: any) {
@@ -96,8 +96,8 @@ export const LiveStreamManager = () => {
       title: stream.title,
       description: stream.description || '',
       stream_url: stream.stream_url,
-      is_active: stream.is_active,
-      thumbnail_url: stream.thumbnail_url || ''
+      thumbnail_url: stream.thumbnail_url || '',
+      is_active: stream.is_active
     });
     setShowForm(true);
   };
@@ -139,7 +139,7 @@ export const LiveStreamManager = () => {
 
       toast({
         title: "Success",
-        description: `Live stream ${!currentStatus ? 'activated' : 'deactivated'} successfully.`,
+        description: `Stream ${!currentStatus ? 'activated' : 'deactivated'} successfully.`,
       });
       
       fetchStreams();
@@ -168,14 +168,14 @@ export const LiveStreamManager = () => {
               title: '',
               description: '',
               stream_url: '',
-              is_active: false,
-              thumbnail_url: ''
+              thumbnail_url: '',
+              is_active: false
             });
           }}
           className="bg-red-600 hover:bg-red-700"
         >
           <Plus className="h-4 w-4 mr-2" />
-          New Live Stream
+          New Stream
         </Button>
       </div>
 
@@ -196,21 +196,21 @@ export const LiveStreamManager = () => {
               </div>
 
               <div>
+                <label className="block text-sm font-medium mb-2">Stream URL</label>
+                <Input
+                  value={formData.stream_url}
+                  onChange={(e) => setFormData({ ...formData, stream_url: e.target.value })}
+                  placeholder="https://www.facebook.com/..."
+                  required
+                />
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium mb-2">Description</label>
                 <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={3}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Stream URL</label>
-                <Input
-                  value={formData.stream_url}
-                  onChange={(e) => setFormData({ ...formData, stream_url: e.target.value })}
-                  placeholder="https://facebook.com/live/..."
-                  required
                 />
               </div>
 
@@ -223,14 +223,15 @@ export const LiveStreamManager = () => {
                 />
               </div>
 
-              <div>
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  />
-                  <span>Active Stream</span>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                />
+                <label htmlFor="is_active" className="text-sm font-medium">
+                  Stream is active
                 </label>
               </div>
 
@@ -254,40 +255,55 @@ export const LiveStreamManager = () => {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {streams.map((stream) => (
           <Card key={stream.id}>
-            <CardContent className="p-4">
-              <div className="aspect-video bg-gray-200 rounded-lg flex items-center justify-center mb-4">
-                {stream.thumbnail_url ? (
-                  <img src={stream.thumbnail_url} alt={stream.title} className="w-full h-full object-cover rounded-lg" />
-                ) : (
-                  <Radio className="h-12 w-12 text-gray-400" />
-                )}
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <h3 className="font-semibold">{stream.title}</h3>
-                      {stream.is_active && (
-                        <Badge variant="destructive" className="animate-pulse">
-                          🔴 LIVE
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">{stream.description}</p>
-                  </div>
-                </div>
-                <div className="flex space-x-2">
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Badge variant={stream.is_active ? "default" : "secondary"}>
+                    {stream.is_active ? (
+                      <>
+                        <Radio className="h-3 w-3 mr-1" />
+                        Live
+                      </>
+                    ) : (
+                      <>
+                        <RadioIcon className="h-3 w-3 mr-1" />
+                        Offline
+                      </>
+                    )}
+                  </Badge>
                   <Button
-                    variant={stream.is_active ? "destructive" : "default"}
+                    variant="outline"
                     size="sm"
                     onClick={() => toggleStreamStatus(stream.id, stream.is_active)}
-                    className="flex-1"
+                    className={stream.is_active ? "text-red-600" : "text-green-600"}
                   >
-                    {stream.is_active ? 'Stop' : 'Start'} Stream
+                    {stream.is_active ? 'Stop' : 'Start'}
                   </Button>
+                </div>
+
+                {stream.thumbnail_url && (
+                  <img
+                    src={stream.thumbnail_url}
+                    alt={stream.title}
+                    className="w-full h-32 object-cover rounded-lg"
+                  />
+                )}
+
+                <div>
+                  <h3 className="font-semibold text-lg">{stream.title}</h3>
+                  {stream.description && (
+                    <p className="text-gray-600 text-sm mt-1">{stream.description}</p>
+                  )}
+                </div>
+
+                <div className="text-sm text-gray-500">
+                  Created: {new Date(stream.created_at).toLocaleDateString()}
+                </div>
+
+                <div className="flex space-x-2">
                   <Button variant="outline" size="sm" onClick={() => handleEdit(stream)}>
                     <Edit className="h-4 w-4" />
                   </Button>

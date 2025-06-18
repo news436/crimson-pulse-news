@@ -1,251 +1,278 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Calendar, Eye, Users, TrendingUp, MousePointer } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { Eye, Users, TrendingUp, Clock } from 'lucide-react';
 
 export const AnalyticsDashboard = () => {
-  const [analytics, setAnalytics] = useState({
-    totalViews: 0,
-    todayViews: 0,
-    weeklyViews: [],
-    topArticles: [],
-    viewsByCategory: []
-  });
+  const [analytics, setAnalytics] = useState<any[]>([]);
+  const [articles, setArticles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState('7');
 
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+    fetchTopArticles();
+  }, [timeRange]);
 
   const fetchAnalytics = async () => {
     try {
-      // Fetch total views
-      const { count: totalViews } = await supabase
-        .from('analytics')
-        .select('*', { count: 'exact', head: true })
-        .eq('event_type', 'view');
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - parseInt(timeRange));
 
-      // Fetch today's views
-      const today = new Date().toISOString().split('T')[0];
-      const { count: todayViews } = await supabase
+      const { data } = await supabase
         .from('analytics')
-        .select('*', { count: 'exact', head: true })
-        .eq('event_type', 'view')
-        .gte('created_at', `${today}T00:00:00.000Z`)
-        .lt('created_at', `${today}T23:59:59.999Z`);
-
-      // Fetch weekly views data
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      
-      const { data: weeklyData } = await supabase
-        .from('analytics')
-        .select('created_at')
-        .eq('event_type', 'view')
-        .gte('created_at', weekAgo.toISOString())
+        .select('*')
+        .gte('created_at', daysAgo.toISOString())
         .order('created_at');
 
-      // Process weekly data
-      const weeklyViews = processWeeklyData(weeklyData || []);
-
-      // Fetch top articles
-      const { data: topArticlesData } = await supabase
-        .from('analytics')
-        .select(`
-          article_id,
-          articles(title)
-        `)
-        .eq('event_type', 'view')
-        .not('article_id', 'is', null);
-
-      const topArticles = processTopArticles(topArticlesData || []);
-
-      setAnalytics({
-        totalViews: totalViews || 0,
-        todayViews: todayViews || 0,
-        weeklyViews,
-        topArticles,
-        viewsByCategory: [] // This would require more complex query
-      });
+      setAnalytics(data || []);
     } catch (error) {
       console.error('Error fetching analytics:', error);
-    } finally {
+    }
+  };
+
+  const fetchTopArticles = async () => {
+    try {
+      const { data } = await supabase
+        .from('articles')
+        .select(`
+          id,
+          title,
+          created_at,
+          status,
+          categories(name)
+        `)
+        .eq('status', 'published')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      setArticles(data || []);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error fetching articles:', error);
       setIsLoading(false);
     }
   };
 
-  const processWeeklyData = (data: any[]) => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const weeklyData = days.map(day => ({ day, views: 0 }));
-    
-    data.forEach(item => {
-      const date = new Date(item.created_at);
-      const dayIndex = date.getDay();
-      weeklyData[dayIndex].views++;
-    });
-    
-    return weeklyData;
+  const processViewsData = () => {
+    const viewsByDay = analytics.reduce((acc: any, item) => {
+      const date = new Date(item.created_at).toLocaleDateString();
+      acc[date] = (acc[date] || 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(viewsByDay).map(([date, views]) => ({
+      date,
+      views
+    }));
   };
 
-  const processTopArticles = (data: any[]) => {
-    const articleCounts: { [key: string]: { title: string; views: number } } = {};
+  const processEventTypes = () => {
+    const eventCounts = analytics.reduce((acc: any, item) => {
+      acc[item.event_type] = (acc[item.event_type] || 0) + 1;
+      return acc;
+    }, {});
+
+    const colors = ['#DC2626', '#059669', '#D97706', '#7C2D12', '#1D4ED8'];
     
-    data.forEach(item => {
-      if (item.article_id && item.articles?.title) {
-        if (articleCounts[item.article_id]) {
-          articleCounts[item.article_id].views++;
-        } else {
-          articleCounts[item.article_id] = {
-            title: item.articles.title,
-            views: 1
-          };
-        }
-      }
-    });
-    
-    return Object.values(articleCounts)
-      .sort((a, b) => b.views - a.views)
-      .slice(0, 5);
+    return Object.entries(eventCounts).map(([event, count], index) => ({
+      name: event,
+      value: count,
+      fill: colors[index % colors.length]
+    }));
   };
 
-  const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'];
+  const getTotalViews = () => analytics.length;
+  const getUniqueUsers = () => {
+    const uniqueIPs = new Set(analytics.map(a => a.user_ip).filter(Boolean));
+    return uniqueIPs.size;
+  };
+
+  const getTopReferrers = () => {
+    const referrerCounts = analytics.reduce((acc: any, item) => {
+      const referrer = item.referrer || 'Direct';
+      acc[referrer] = (acc[referrer] || 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(referrerCounts)
+      .sort(([,a], [,b]) => (b as number) - (a as number))
+      .slice(0, 5)
+      .map(([referrer, count]) => ({ referrer, count }));
+  };
 
   if (isLoading) {
     return <div className="flex justify-center py-8">Loading analytics...</div>;
   }
 
+  const viewsData = processViewsData();
+  const eventData = processEventTypes();
+  const topReferrers = getTopReferrers();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h2>
-        <div className="flex items-center space-x-2 text-sm text-gray-500">
-          <Calendar className="h-4 w-4" />
-          <span>Last updated: {new Date().toLocaleString()}</span>
-        </div>
+        <Select value={timeRange} onValueChange={setTimeRange}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1">Last 24 hours</SelectItem>
+            <SelectItem value="7">Last 7 days</SelectItem>
+            <SelectItem value="30">Last 30 days</SelectItem>
+            <SelectItem value="90">Last 90 days</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Stats Cards */}
+      {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Views</CardTitle>
-            <Eye className="h-4 w-4 text-blue-600" />
+            <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics.totalViews.toLocaleString()}</div>
-            <p className="text-xs text-gray-500">All time page views</p>
+            <div className="text-2xl font-bold">{getTotalViews().toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              Last {timeRange} days
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Views</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
+            <CardTitle className="text-sm font-medium">Unique Visitors</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics.todayViews.toLocaleString()}</div>
-            <p className="text-xs text-gray-500">Views today</p>
+            <div className="text-2xl font-bold">{getUniqueUsers().toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              Unique IP addresses
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-            <Users className="h-4 w-4 text-purple-600" />
+            <CardTitle className="text-sm font-medium">Published Articles</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">N/A</div>
-            <p className="text-xs text-gray-500">Real-time users</p>
+            <div className="text-2xl font-bold">{articles.length}</div>
+            <p className="text-xs text-muted-foreground">
+              Recent articles
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bounce Rate</CardTitle>
-            <MousePointer className="h-4 w-4 text-orange-600" />
+            <CardTitle className="text-sm font-medium">Avg. Daily Views</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">N/A</div>
-            <p className="text-xs text-gray-500">Percentage</p>
+            <div className="text-2xl font-bold">
+              {Math.round(getTotalViews() / parseInt(timeRange)).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Views per day
+            </p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Weekly Views Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Weekly Views</CardTitle>
-            <CardDescription>Page views over the last 7 days</CardDescription>
+            <CardTitle>Daily Views</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={analytics.weeklyViews}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="day" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="views" fill="#ef4444" />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={viewsData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="views" stroke="#DC2626" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Top Articles */}
         <Card>
           <CardHeader>
-            <CardTitle>Top Articles</CardTitle>
-            <CardDescription>Most viewed articles</CardDescription>
+            <CardTitle>Event Types</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {analytics.topArticles.length > 0 ? (
-                analytics.topArticles.map((article, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm truncate">{article.title}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-red-600">{article.views}</p>
-                      <p className="text-xs text-gray-500">views</p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 text-center py-8">No article views recorded yet</p>
-              )}
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={eventData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {eventData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Additional Analytics Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Analytics Information</CardTitle>
-          <CardDescription>Understanding your data</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold mb-2">Data Collection</h4>
-              <p className="text-sm text-gray-600">
-                Analytics data is collected when users view articles on your website. 
-                This includes page views, user interactions, and basic usage patterns.
-              </p>
+      {/* Tables */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Referrers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {topReferrers.map((item, index) => (
+                <div key={index} className="flex justify-between items-center py-2 border-b">
+                  <span className="text-sm truncate">{item.referrer}</span>
+                  <span className="font-medium">{item.count}</span>
+                </div>
+              ))}
             </div>
-            <div>
-              <h4 className="font-semibold mb-2">Privacy</h4>
-              <p className="text-sm text-gray-600">
-                We collect minimal data needed for analytics while respecting user privacy. 
-                No personal information is stored beyond basic usage statistics.
-              </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Articles</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {articles.slice(0, 5).map((article) => (
+                <div key={article.id} className="py-2 border-b">
+                  <div className="font-medium text-sm truncate">{article.title}</div>
+                  <div className="text-xs text-gray-500">
+                    {article.categories?.name || 'Uncategorized'} • {new Date(article.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
